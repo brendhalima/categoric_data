@@ -1,0 +1,998 @@
+---
+title: "Listas V, VI e VII de Exercícios - Análise de Dados Categóricos"
+author: "Bruna Wundervald"
+date: "Novembro de 2016"
+output: pdf_document
+header-includes:
+- \usepackage[brazil]{babel}
+---
+# Lista V 
+
+1. Os dados exibidos na **Tabela 1** são de um estudo sobre doença 
+coronária (CHD) em que CAT = nível de catecholamine (0 se baixo e 1 
+se alto), IDADE (0 se < 55 e 1 se = 55 anos) e ECG = eletrocardiograma 
+(0 se normal e 1 se anormal).
+  (a) Ajuste um modelo de regressão logística aos dados desse estudo e 
+  apresente conclusões. Avalie o efeito das interações duplas
+
+```{r, results='asis', message=FALSE}
+library(xtable)
+da1 <-read.table("https://docs.ufpr.br/~giolo/CE073/Dados/ex1chd.txt", 
+                 header = TRUE)
+
+# da1 <- read.table("da.txt")
+print(xtable(da1, type = "html", caption = "Doença Coronária"))
+```
+
+```{r, warning=FALSE, message=FALSE}
+m0 <- glm(as.matrix(da1[,c(1,2)]) ~ (cat+idade+ecg)^2,
+          family=binomial(link="logit"),
+          data=da1)
+anova(m0, test="Chisq")
+```
+
+Como observado acima, as váriaveis idade e nível de catecholamine são 
+significativas para o modelo. Podemos comentar que as interações duplas 
+não são significativas.
+
+A *deviance* do modelo ajustado é, o que é um resultado
+bom quando precisamos avaliar a qualidade do ajuste. Quanto menor
+é esta *deviance*, melhor o nosso modelo está declarado.
+
+Em um segundo ajuste, mantemos as duas variáveis anteriormente
+relevantes de acordo com a anova do modelo:
+```{r, warning=FALSE, message=FALSE}
+m0 <- glm(as.matrix(da1[,c(1,2)]) ~ cat+idade,
+          family = binomial(link = "logit"), 
+          data = da1)
+summary(m0)
+```
+
+Aqui, obtemos um modelo para o qual ambas as variáveis são 
+consideravelmente significativas. 
+
+```{r}
+dev <-residuals(m0, type='deviance')
+QL <- sum(dev^2)
+p1 <- 1-pchisq(QL, 5)
+cbind(QL,p1)
+
+rpears <- residuals(m0, type='pearson')
+QP <- sum(rpears^2)
+p2 <-1-pchisq(QP, 5)
+cbind(QP, p2)
+
+par(mfrow=c(1,3))
+plot(rpears, ylab="Resíduos Pearson", pch=16, ylim=c(-2,2))
+abline(h=0, lty=3)   
+plot(dev, ylab="Resíduos Deviance", pch=16, ylim=c(-2,2))
+abline(h=0, lty=3)
+
+#--------------------
+library(hnp)
+hnp(m0)
+```
+
+2. Um estudo reuniu informações entre 1994 e 1995 de 494 indivíduos que
+sofreram acidente traumático e foram atendidos pelo SIATE (Serviço 
+Integrado de Atendimento ao Trauma em Emergência). A fim de predizer a 
+probabilidade de óbito nas primeiras 24 horas após o acidente, foi 
+ajustado um modelo de regressão logística aos dados do estudo. O modelo 
+ajustado ficou expresso por:
+
+$$ln(\frac{\hat p(x)}{1 - \hat p(x)}) = 2.211 + 2.607x_{1} - 0.52x_{2},$$
+
+em que $x_{1}$ = número de lesões no tórax, podendo variar de 0 a 5, 
+e $x_{2}$ = escala de coma de Glascow (GCS) = total registrado para
+cada indivíduo no Quadro 1, que pode variar entre 3 e 15.
+
+(a) Estime as probabilidades $p(x)$ para todas as combinações de $x_{1}$
+e $x_{2}$ apresentando-as em ordem decrescente a fim de identificar os 
+indivíduos que necessitam de encaminhamento hospitalar com muita, 
+moderada ou pouca urgência
+
+```{r}
+# les <- rep(c(0:5), c(13, 13, 13, 13, 13, 13))
+# coma <- rep(3:15, rep(6, 13))
+# da2 <- cbind(les, coma)
+# 
+# ## checar se faz sentido coma = 0 = referência
+# model <- function(x)
+#   {
+#   n <- nrow(x)
+#   
+#   for(i in 1:n){
+#   x1 <- x[,1]
+#   x2 <- x[,2]
+#   m <- 2.211 + 2.607 * x1 - 0.52 * x2
+#   resp <- exp(m)/(1+exp(m))
+#   }
+#   return(resp)
+#   }
+# n <- model(da2)
+# cbind(da2, n)
+# hist(n)
+
+x1<-rep(0:5,13)
+x2<-rep(3:15,rep(6,13))
+px<-(exp(2.211 + 2.607*x1 - 0.52*x2))/(1+ exp(2.211 + 2.607*x1 - 0.52*x2))
+est<-as.data.frame(cbind(x1,x2,px))
+i<-order(est[,3], decreasing=T)
+px_ord<-est[i,]
+px_ord
+
+```
+
+
+3. A fim de avaliar a toxicidade aguda de duas drogas (A e B), estas 
+foram administradas em dosagens diferentes (injeção intravenosa) a 
+grupos de camundongos. As mortes foram registradas após 5 minutos da 
+administração da droga. Os dados estão na Tabela 2. 
+```{r, results='asis'}
+da2 <-read.table("https://docs.ufpr.br/~giolo/CE073/Dados/ex3bio.txt", 
+                 header = TRUE)
+da2$ldose<-log10(da2$dose)
+
+# da2 <- read.table("da2.txt")
+print(xtable(da2, type = "html", caption = "Bioensaio
+             com Camundongos"))
+```
+
+Considerando:
+
+ $$
+    X_{1}=\left\{
+                \begin{array}{l}
+                  1,\quad se \quad droga \quad A\\
+                  0,\quad se \quad droga \quad B\\
+                \end{array}
+              \right.$$
+
+e $X_{2} = ln_{10}(dose)$. 
+
+(a) Ajuste um modelo de regressão binomial (logístico, probito, 
+clog-log ou Cauchy) aos dados descritos e apresente conclusões. 
+```{r}
+m2 <-glm(as.matrix(da2[,c(3,4)]) ~ 
+           (droga + ldose)^2,
+         family = binomial(link="logit"),
+         data = da2)
+anova(m2, test="Chisq")
+
+m2 <-glm(as.matrix(da2[,c(3,4)]) ~ ldose,
+           family = binomial(link="logit"),
+           data = da2)
+anova(m2, test="Chisq")
+
+# função de ligação c-loglog 
+m3 <-glm(as.matrix(da2[,c(3,4)]) ~ 
+           (droga + ldose)^2,
+         family = binomial(link="cloglog"),
+         data = da2)
+anova(m3, test="Chisq")
+
+m3 <-glm(as.matrix(da2[,c(3,4)]) ~ ldose,
+         family = binomial(link="cloglog"),
+         data = da2)
+anova(m3, test="Chisq")
+
+# função de ligação probito
+m4 <-glm(as.matrix(da2[,c(3,4)]) ~ 
+           (droga + ldose)^2,
+         family = binomial(link="probit"),
+         data = da2)
+anova(m4, test="Chisq")
+
+m4 <-glm(as.matrix(da2[,c(3,4)]) ~ ldose,
+         family = binomial(link="probit"),
+         data = da2)
+anova(m4, test="Chisq")
+
+# função de ligação cauchy
+m5 <-glm(as.matrix(da2[,c(3,4)]) ~ 
+           (droga + ldose)^2,
+         family = binomial(link="cauchit"),
+         data = da2)
+anova(m5, test="Chisq")
+
+m5 <-glm(as.matrix(da2[,c(3,4)]) ~ ldose,
+         family = binomial(link="cauchit"),
+         data = da2)
+anova(m5, test="Chisq")
+```
+
+Notamos que a variável "droga" não se mostrou significativa. Isto
+quer dizer que o nível de toxicidade aguda de cada droga
+não influencia nas mortes dos camundongos. Apenas o log da dose
+aplicada de cada droga parece ter efeito sobre os animais. 
+
+```{r}
+cbind(m2$aic, m3$aic, m4$aic, m5$aic)
+# os modelos com função de ligação
+# probito e logito têm os menores 
+# AIC
+par(mfrow = c(1,1))
+hnp(m4)
+
+# valores preditos 
+f <- m4$fitted.values
+OR <- (f[4]/(1-f[4]))/(f[3]/(1-f[3])); OR
+
+summary(m4)
+```
+
+Tem-se, por exemplo, que os camundongos que receberam dosagem 
+16 (log10(dose) = 1.20412) apresentaram chance de morte igual a 
+aproximadamente 5 vezes a daqueles que receberam dosagem
+8 (log10(dose) = 0.90309). 
+
+4. Um grupo de 4.587 indivíduos sem doença cardíaca coronária (CHD)
+ao ingressarem no *Framingham Heart Study* foi acompanhado por 12 anos
+registrando-se, ao final desse período, os que desenvolveram a doença.
+Os dados por sexo, grupo de idade (em anos) e nível de colesterol 
+inicial (mg/100ml) estão na Tabela 33.
+
+(a) Ajuste um modelo de regressão logística aos dados desse estudo.
+(b) Com base no modelo ajustado em (a) é possível concluir que as 
+variáveis $X_{1}$, $X_{2}$ e $X_{3}$ são fatores de risco para CHD?
+
+```{r}
+# i <- expand.grid( sexo = c("Fem", "Masc"), 
+#                  idade = c("30-49", "50-62"), 
+#                  nivel = c("<190", "190-219", "220-249", "250<"),
+#                  s = 0, n = 0)
+# da4 <- edit(i)
+# write.table(da4, file = "da4.txt")
+
+# da4 <- read.table("da4.txt")
+da4 <- read.table("https://docs.ufpr.br/~giolo/CE073/Dados/ex5rote.txt",
+                  header = TRUE)
+print(xtable(da4, type = "html", caption = "Framingham
+             Heart Study"))
+```
+
+```{r}
+str(da4)
+m4 <- glm(cbind(s, n)~ . , data = da4,
+          family = binomial)
+summary(m4)
+anova(m4, test = "Chisq")
+```
+
+Aqui, conclui-se que ser do sexo masculino incorre numa maior
+probabilidade de ter doença coronária cardíaca, assim como estar na faixa
+entre 50 e 62 anos. Porém, podemos notar que não há diferença se o 
+indivíduo tem nível de colesterol inicial abaixo de 190 ou entre 190 e 
+219. Esta váriavel só passa a ser significativa a partir do terceiro 
+nível, ou seja, entre 220 e 249. 
+
+A chance de um indivídou do sexo masculino ter a doença é aproximadamente
+3 vezes a do sexo feminino, mantendo as classes das outras variáveis 
+fixas. 
+```{r}
+exp(m4$coefficients[2])
+```
+
+5. Para avaliar a toxicidade do inseticida rotenone, um bioensaio foi 
+conduzido sob o delineamento completamente casualizado. Doses crescentes
+do inseticida foram aplicadas a grupos de insetos (*macrosiphoniella 
+sanborni*) registrando-se, após certo tempo, o número de insetos mortos
+em cada grupo. Os resultados estão na tabela abaixo.
+
+```{r}
+# i <- expand.grid(dose = 0,
+#                  s = 0, n = 0, tot = 0)
+# da5 <- edit(i)
+# str(da5)
+# write.table(da5, file = "da5.txt")
+
+da5 <- read.table("https://docs.ufpr.br/~giolo/CE073/Dados/ex5rote.txt",
+                  header = TRUE)
+
+# da5 <- read.table("da5.txt")
+print(xtable(da5, type = "html", caption = ""))
+```
+(a) Para os dados do bioensaio descrito, ajuste um modelo de regressão 
+dentre os que foram discutidos no capítulo.
+(b) A partir do modelo ajustado obtenha as doses letais 50% e 90% 
+denotadas, respectivamente, por $DL_{50}$ e $DL_{90}$.
+
+```{r}
+da5$dose[1] <- 0.01
+attach(da5)
+# função de ligação logito
+m5 <- glm(cbind(sim, nao) ~ log10(dose), data = da5,
+          family = binomial(link="logit"))
+summary(m5)
+
+x<-seq(-2,1.5,0.1)
+m1<-exp(-4.8869+7.1462*x)/(1+exp(-4.8869+7.1462*x))
+par(mfrow=c(1,1))
+
+# plot(log(dose), sim/(sim+nao),
+#      pch = 16,
+#      ylab = "proporção de mortes",
+#      xlab = "log10(dose)", 
+#      xlim = c(-2.1,1.5),
+#      ylim = c(0,1.05))
+# lines(x, m5, lty=1,lwd=2, col=2)
+
+# função de ligação probito
+m5.1 <- glm(cbind(sim, nao) ~ log10(dose), data = da5,
+          family = binomial(link="probit"))
+summary(m5.1)
+
+# plot(log(dose), sim/(sim+nao),
+     # col='red',pch=20,
+     # ylim=c(0,1),
+     # cex=1.3,
+     # xlab='log(dose)',
+     # ylab='Proporção de insetos mortos')
+# lines(c(-Inf, seq(0.95, 2.5, 0.37)), prediL, lwd=2, col = 3)
+```
+
+Ajustando o modelo com duas funções de ligação diferentes, concluímos
+que o $log(dose)$ interfere na eficiência do inseticida. Isto é, 
+sua presença no modelo foi estatisticamente significativa. 
+
+```{r}
+# doses letais de 50% e 90%
+m5$fitted.values
+log10(da5$dose)
+
+# Tem-se, por exemplo, que a chance de morte dos insetos sob a
+# dose de inseticida 5.1 (log10(dose) = 0.7075702) 
+# foi exp(7.1462 * (0.7075702-0.5797836)) ??? 2,5 vezes a daqueles sob a
+# dose 3.8 (log10(dose) = 0.5797836).
+ 
+# (c)   LD50 ??? 4.8
+10^(-m5$coef[1]/m5$coef[2])
+
+10^((log(0.9/0.1)+4.8869)/7.1462)
+9.801973 
+# ????????????????????????/
+# 0.5 = exp(-4.890 + 3.105 x)/(1 + exp(-4.890 + 3.105 x))
+# 0.5 (1 + exp(-4.890 + 3.105 x)) = exp(-4.890 + 3.105 x)
+# # log: log(0.5) + 0.5 (-4.890 + 3.105 x) = -4.890 + 3.105 x
+# log(0.5) # -0.6931472
+# -4.89/2
+# 7.1462/2
+# # -0.6931472 - 2.445 + 3.5731 = (3.105-1.5525)x
+# -0.6931472 - 2.445 + 3.5731
+# 3.105-1.5525
+# # x = 1.5525/1.751853
+# x = 1.5525/0.4349528
+# x
+# dl50 <- exp(x)
+# dl50
+# **********************************
+```
+
+
+6. Indivíduos hipertensos participaram de um estudo que teve por 
+objetivo avaliar o efeito de dietas e medicamentos na redução da pressão
+arterial diastólica (PAD). Os dados estão na Tabela 5.
+
+```{r, results='asis'}
+# i <- expand.grid(Dieta = c("Usual", "-Gordura", "-Sal"),
+#                  Medicamento = c("Placebo", " Chlortalidone", 
+#                                  "Atenolol"), 
+#                  Sim = 0,  Não = 0, Total = 0)
+# da6 <- edit(i)
+# str(da6)
+# write.table(da6, file = "da6.txt")
+da6 <- read.table("https://docs.ufpr.br/~giolo/CE073/Dados/ex6dietas.txt", 
+                  header = TRUE)
+names(da6) <- c("Dieta", "Medicamento", "Sim", "Não")
+print(xtable(da6, type = "html", caption = ""))
+```
+
+(a) Represente os dados graficamente.
+(b) Analise os dados e apresente conclusões
+
+```{r, fig.cap="Diminuição na Pressão Arterial", message=FALSE, warning=FALSE}
+tab1 <- xtabs(Sim~Medicamento + Dieta, data = da6)
+tab2 <- xtabs(Não~Medicamento + Dieta, data = da6)
+
+# gráfico de mosaico para os dados
+library(mosaic)
+par(mfrow=c(1, 2), cex = 0.8)
+
+mosaicplot(tab1, col = c("skyblue", "salmon", "orange"),
+           main = "Sim")
+mosaicplot(tab2, col = c("skyblue", "salmon", "orange"),
+           main = "Não")
+```
+
+```{r}
+m6 <- glm(cbind(Sim, Não) ~ Dieta + Medicamento, 
+          data = da6, 
+          family = binomial(link = "logit"))
+summary(m6)
+anova(m6, test="Chisq")
+library(car)
+# Anova de inserção de variáveis não sequencial
+Anova(m6)
+```
+
+Notamos acima que, como já era possível de imaginar através dos gráficos
+em mosaico, as variáveis foram significativas. A *Anova* realizada
+reenforça essa hipótese, dado que a inserção não sequencial de variáveis
+também mostrou que elas são relevantes. As interações foram pouco ou 
+nada relevantes para o modelo.
+
+Odds: A chance de um indivíduo com restrição de gordura ter redução na
+pressão em relação à dieta de restrição de sódio é:
+```{r}
+1/exp(m6$coefficients[2])
+# Embora as dietas rs e rg não tenham apresentado diferenças estatísticas 
+# significativas, foi observado indícios de que a chance de redução da 
+# PAD seja um um pouco maior sob a dieta com restrição de gordura do que 
+# sob a dieta com restrição de sal.
+
+# RG e usual
+1/exp(m6$coefficients[3])
+```
+
+*________________________________________________________________________*
+
+# Lista VI
+
+1. Os dados na Ta    bela são de um estudo sobre doença respiratória 
+crônica em que as categorias da variável resposta Y indicam: I = sem 
+sintomas, II = tosse por menos de 3 meses ao ano, III = tosse por mais 
+de 3 meses ao ano e IV = tosse e outros sintomas por mais de 3 meses ao
+ano. O objetivo do estudo foi investigar a associação da poluição do ar,
+poluição no trabalho e status de fumo com a doença.
+
+```{r, results='asis'}
+# da7 <- read.table("da7.txt")
+da7 <- read.table("https://docs.ufpr.br/~giolo/CE073/Dados/respiratoria.txt",
+                  header = TRUE)
+print(xtable(da7, type = "html", caption = ""))
+```
+
+(a) Analise os dados por meio do modelo **logitos cumulativos**.
+(b) Avalie a qualidade de adequação do modelo considerado em (a).
+(c) Apresente conclusões sobre a associação de interesse
+
+```{r}
+library(VGAM)
+names(da7) <- c("I", "II", "III", "IV", "Ar", "Trabalho", "Fumo")
+# não houve efeito significativo da variável de poluição no ar
+
+# ajuste de um modelo logitos cumulativos com chances proporcionais
+m7.1 <- vglm(cbind(I, II, III, IV) ~ Fumo + Trabalho, 
+             data = da7, family = cumulative(parallel = TRUE, 
+                                             reverse = FALSE))
+coef(m7.1, matrix = TRUE)
+
+# ajuste de um modelo logitos cumulativos sem chances proporcionais
+m7.2 <- vglm(cbind(I, II, III, IV) ~ Fumo + Trabalho, 
+             data = da7, family = cumulative(parallel = FALSE, 
+                                             reverse = FALSE))
+coef(m7.2, matrix = TRUE)
+
+TRV <- 2*(logLik(m7.2)-logLik(m7.1))
+gl <- (length(coef(m7.2))-length(coef(m7.1)))
+p <- 1-pchisq(TRV, gl)
+cbind(TRV, gl, p)
+# p [mais ou menos] significativo
+
+# deve-se descobrir qual das variáveis esta interferindo
+# e precisa de chances proporcionais (parcial)
+
+m7.1 <- vglm(cbind(I, II, III, IV) ~ Fumo, 
+             data = da7, family = cumulative(parallel = TRUE, 
+                                             reverse = FALSE))
+
+# ajuste de um modelo logitos cumulativos sem chances proporcionais
+m7.2 <- vglm(cbind(I, II, III, IV) ~ Fumo, 
+             data = da7, family = cumulative(parallel = FALSE, 
+                                             reverse = FALSE))
+TRV <- 2*(logLik(m7.2)-logLik(m7.1))
+gl <- (length(coef(m7.2))-length(coef(m7.1)))
+p <- 1-pchisq(TRV, gl)
+cbind(TRV, gl, p) # significativo - o fumo precisa de chances 
+                  # proporcionais
+
+m7.1 <- vglm(cbind(I, II, III, IV) ~ Trabalho, 
+             data = da7, family = cumulative(parallel = TRUE, 
+                                             reverse = FALSE))
+
+# ajuste de um modelo logitos cumulativos sem chances proporcionais
+m7.2 <- vglm(cbind(I, II, III, IV) ~ Trabalho, 
+             data = da7, family = cumulative(parallel = FALSE, 
+                                             reverse = FALSE))
+
+TRV <- 2*(logLik(m7.2)-logLik(m7.1))
+gl <- (length(coef(m7.2))-length(coef(m7.1)))
+p <- 1-pchisq(TRV, gl)
+cbind(TRV, gl, p) # não significativo
+
+m7 <- vglm(cbind(I, II, III, IV) ~ Fumo + Trabalho, 
+             data = da7, family = cumulative(parallel = FALSE~Fumo, 
+                                             reverse = FALSE))
+
+# modelos com chances proporcionais parcias para o fumo
+coef(m7, matrix = TRUE)
+
+# verificando a adequação do modelo
+rp <-resid(m7, type = "pearson")
+Qp <-sum(rp^2)
+cbind(Qp, 1-pchisq(Qp, 26)) # quais gl são esses?
+
+QL <- deviance(m7)
+cbind(QL, 1-pchisq(QL, 26))
+
+# os resultados são muito próximos
+# gráficos de todos os resíduos dos logitos
+par(mfrow=c(1,2))
+rb <- m7@y - fitted(m7)
+plot(1:12, rb[,1], pch=20,
+     ylim=c(-0.5,0.5),xlim=c(1,48),
+     xlab="índice",
+     ylab="Probabilidade observada - predita")
+points(13:24, rb[,2],pch=20)
+points(25:36, rb[,3],pch=20)
+points(37:48, rb[,4],pch=20)
+abline(h=0,lty=3)
+
+# resíduos de pearson 
+rp <-resid(m7, type = "pearson")
+plot(1:12, rp[,1], pch=20, 
+     ylim=c(-3,3), xlim=c(1,16),
+     xlab="índice",
+     ylab="Resíduos de Pearson")
+points(13:24, rp[,2],pch=20)
+points(25:36, rp[,3],pch=20)
+abline(h=0,lty=3)
+
+# os gráficos mostram um bom ajuste do modelo
+```
+
+Avaliamos dois modelos: o com chances proporcionais e sem. Para este
+problema, o modelo sem chances proporcionais parciais se mostrou
+necessário, dando lugar ao outro ajuste. Esta conclusão foi obtida 
+utilizando o Teste de Razão de Verossimilhança entre os dois modelos.
+O modelo final é o de chances proporcionais parciais para a variável
+fumo. 
+
+Os resíduos de Pearson estando no intervalo entre **-1** e **1** sugerem
+uma boa qualidade de ajuste. 
+
+A interpretação fica como abaixo:
+logito 1:  gravidade doença respiratória  I / (II ou III ou IV)
+
+- Poluição no Trabalho - variável sem chances proporcionais
+OR S|N = exp(-0.855)  =  0.425    
+OR N|S = 1/exp(-0.855) =  2.351
+
+- Ex-fumante = nível de referência (logito 1)
+OR N | EX = exp(0.43) = 1.537
+ 
+Chance de nenhum sintoma de doença respiratória crônica entre os
+não fumantes é ??? 1,5 vezes a dos ex-fumantes.
+
+2. Os dados de um estudo sobre demência realizado com indivíduos de 
+65 anos ou mais de idade são mostrados na Tabela **37*. Considerando 
+que o objetivo do estudo é o de investigar a associação entre as 
+variáveis $X_{1}$ (uso de tabaco) e $X_{2}$ (problema cardíaco) com o
+estado geral de saúde dos indivíduos (variável resposta):
+
+```{r, results='asis'}
+# i <- expand.grid(Tabaco = c("Sim", "Não"),
+#                  Cardiaco = c("Não", "Sim"),
+#                  Exc = 0, Bom = 0, Mod = 0, Ruim = 0,
+#                  Total = 0)
+# da8 <- edit(i)
+# str(da8)
+# write.table(da8, file = "da8.txt")
+ 
+da8 <- read.table("https://docs.ufpr.br/~giolo/CE073/Dados/idosos.txt", 
+                  header = TRUE)
+print(xtable(da8, type = "html", caption = ""))
+```
+
+(a) Represente graficamente os dados do estudo.
+(b) Analise os dados fazendo uso do modelo logitos cumulativos.
+(c) Apresente conclusões sobre a associação de interesse.
+
+```{r}
+str(da8)
+tab <- xtabs(cbind(exc, bom, mod, ruim) ~ tabaco + pcard,
+             data = da8)
+
+# gráfico de mosaico para os dados
+mosaicplot(tab, 
+           col = c("skyblue", "salmon", "orange", "lightgreen"),
+           main = "Estado geral de saúde")
+
+# ajuste dos modelos
+# logitos cumulativos com chances proporcionais
+m8.1 <- vglm(cbind(exc, bom, mod, ruim) ~ tabaco + pcard,
+           data = da8, family = cumulative(parallel = TRUE, 
+                                           reverse = FALSE))
+coef(m8.1, matrix = TRUE)
+
+# logitos cumulativos sem chances proporcionais
+m8.2 <- vglm(cbind(exc, bom, mod, ruim) ~ tabaco + pcard,
+           data = da8, family = cumulative(parallel = FALSE, 
+                                           reverse = FALSE))
+coef(m8.2, matrix = TRUE)
+
+# teste da razão das verossimilhanças
+TRV <- 2*(logLik(m8.2)-logLik(m8.1))
+gl <- length(coef(m8.2))-length(coef(m8.1))
+p <- 1 - pchisq(TRV, gl)
+cbind(TRV, gl, p ) # p significativo
+
+# deve-se descobrir qual das variáveis esta interferindo
+# e precisa de chances proporcionais (parcial)
+
+m8.1 <- vglm(cbind(exc, bom, mod, ruim) ~ tabaco,
+           data = da8, family = cumulative(parallel = TRUE, 
+                                             reverse = FALSE))
+
+# ajuste de um modelo logitos cumulativos sem chances proporcionais
+m8.2 <- vglm(cbind(exc, bom, mod, ruim) ~ tabaco,
+           data = da8, family = cumulative(parallel = FALSE, 
+                                             reverse = FALSE))
+TRV <- 2*(logLik(m8.2)-logLik(m8.1))
+gl <- (length(coef(m8.2))-length(coef(m8.1)))
+p <- 1-pchisq(TRV, gl)
+cbind(TRV, gl, p) # significativo - o tabaco precisa de chances 
+                  # proporcionais
+
+#-----------------------
+m8.1 <- vglm(cbind(exc, bom, mod, ruim) ~ pcard,
+           data = da8, family = cumulative(parallel = TRUE, 
+                                             reverse = FALSE))
+
+# ajuste de um modelo logitos cumulativos sem chances proporcionais
+m8.2 <- vglm(cbind(exc, bom, mod, ruim) ~ pcard,
+           data = da8, family = cumulative(parallel = FALSE, 
+                                             reverse = FALSE))
+
+TRV <- 2*(logLik(m8.2)-logLik(m8.1))
+gl <- (length(coef(m8.2))-length(coef(m8.1)))
+p <- 1-pchisq(TRV, gl)
+cbind(TRV, gl, p) # não significativo
+
+
+m8 <- vglm(cbind(exc, bom, mod, ruim) ~ tabaco + pcard,
+           data = da8, family = cumulative(parallel = FALSE~tabaco, 
+                                             reverse = FALSE))
+
+# modelos com chances proporcionais parcias para o TABACO
+coef(m8, matrix = TRUE)
+
+rp <-resid(m8, type = "pearson")
+Qp <-sum(rp^2)
+cbind(Qp, 1-pchisq(Qp, 5)) # quais gl são esses?
+
+QL <- deviance(m8)
+cbind(QL, 1-pchisq(QL, 5))
+
+# os resultados são muito próximos
+# gráficos de todos os resíduos dos logitos
+par(mfrow=c(1,2))
+rb <- m8@y - fitted(m8)
+plot(1:4, rb[,1], pch=20,
+     ylim=c(-0.5,0.5), xlim=c(1, 16),
+     xlab="índice",
+     ylab="Probabilidade observada - predita")
+points(5:8, rb[,2],pch=20)
+points(9:12, rb[,3],pch=20)
+points(13:16, rb[,4],pch=20)
+abline(h=0,lty=3)
+
+# resíduos de pearson 
+rp <-resid(m8, type = "pearson")
+plot(1:4, rp[,1], pch=20, 
+     ylim=c(-3,3), xlim=c(1,16),
+     xlab="índice",
+     ylab="Resíduos de Pearson")
+points(5:8, rp[,2],pch=20)
+points(9:12, rp[,3],pch=20)
+points(13:16, rp[,2],pch=20)
+abline(h=0,lty=3)
+
+coef(m8, matrix = TRUE)
+
+# os gráficos mostram um bom ajuste do modelo
+```
+
+Avaliamos dois modelos: o com chances proporcionais e sem. Para este
+problema, o modelo sem chances proporcionais parciais se mostrou
+necessário, dando lugar ao outro ajuste. Esta conclusão foi obtida 
+utilizando o Teste de Razão de Verossimilhança entre os modelos.O modelo
+final é o de chances proporcionais parciais para a variável tabaco. 
+
+Os resíduos de Pearson estando no intervalo entre **-2** e **2** sugerem
+uma boa qualidade de ajuste. 
+
+A interpretação fica como abaixo:
+logito 1:  estado de saúde  Exc / (Bom ou Mod ou Ruim)
+
+- Tabaco - variável com chances proporcionais
+OR S|N = exp(-0.1271912)  = 0.8805653     
+OR N|S = 1/exp(-0.855) =  1.135634
+
+Interpretação: A chance de alguém que não fuma estar na classe
+excelente de saúde é apenas um pouco maior do que a das pessoas
+que consomem tabaco. 
+
+- Ausência de problema cardíaco = nível de referência (logito 1)
+OR S|N = exp(-1.0253390) = 0.3586749
+OR N|S = 1/exp(-1.0253390) =  2.78804
+
+Interpretação: A chance de alguém que não tem problemas cardíacos
+estar na classe excelente de saúde é 2.79 vezes a chance de quem 
+tem problemas cardíacos. 
+
+3. Analise os dados do estudo dispostos na Tabela 37 por meio:
+(a) do modelo logitos categorias adjacentes;
+(b) do modelo logitos razão contínua.
+
+```{r}
+# modelo logitos categorias adjacentes
+
+# com chances proporcionais
+m8.3 <- vglm(cbind(exc, bom, mod, ruim) ~ tabaco + pcard,
+             data = da8, family = acat(parallel = TRUE, 
+                                       reverse = TRUE))
+coef(m8.3, matrix = TRUE)
+
+# sem chances proporcionais
+m8.4 <- vglm(cbind(exc, bom, mod, ruim) ~ tabaco + pcard,
+             data = da8, family = acat(parallel = FALSE, 
+                                       reverse = TRUE))
+coef(m8.4, matrix = TRUE)
+
+TRV <- deviance(m8.3) - deviance(m8.4)
+gl <- df.residual(m8.3) - df.residual(m8.4)
+p <- 1 - pchisq(TRV, gl)
+cbind(TRV, gl, p) # p significativo - um modelo com chances 
+                  # proporcionais é necessário
+
+#---------- só tabaco
+# com chances proporcionais
+m8.3 <- vglm(cbind(exc, bom, mod, ruim) ~ tabaco,
+             data = da8, family = acat(parallel = TRUE, 
+                                       reverse = TRUE))
+# sem chances proporcionais
+m8.4 <- vglm(cbind(exc, bom, mod, ruim) ~ tabaco,
+             data = da8, family = acat(parallel = FALSE, 
+                                       reverse = TRUE))
+
+TRV <- deviance(m8.3) - deviance(m8.4)
+gl <- df.residual(m8.3) - df.residual(m8.4)
+p <- 1 - pchisq(TRV, gl)
+cbind(TRV, gl, p) # p significativo  
+
+#----------- só pcard
+# com chances proporcionais
+m8.3 <- vglm(cbind(exc, bom, mod, ruim) ~ pcard,
+             data = da8, family = acat(parallel = TRUE, 
+                                       reverse = TRUE))
+# sem chances proporcionais
+m8.4 <- vglm(cbind(exc, bom, mod, ruim) ~  pcard,
+             data = da8, family = acat(parallel = FALSE, 
+                                       reverse = TRUE))
+
+TRV <- deviance(m8.3) - deviance(m8.4)
+gl <- df.residual(m8.3) - df.residual(m8.4)
+p <- 1 - pchisq(TRV, gl)
+cbind(TRV, gl, p) # p significativo  
+
+# as chances propocionais são necessárias para ambas as variáveis
+# modelo final
+m8.4 <- vglm(cbind(exc, bom, mod, ruim) ~ tabaco + pcard,
+             data = da8, family = acat(parallel = FALSE, 
+                                       reverse = TRUE))
+#----------- avaliação do modelo
+par(mfrow=c(1,2))
+rb <- m8.4@y - fitted(m8.4)
+plot(1:4, rb[,1], pch=20,
+     ylim = c(-0.5,0.5),
+     xlim = c(1,16),
+     xlab = "índice",
+     ylab = "Probabilidade observada - predita")
+points(5:8, rb[,2], pch=20)
+points(9:12, rb[,3], pch=20)
+points(13:16, rb[,4], pch=20)
+abline(h=0, lty=3)
+ 
+rp <-resid(m8.4, type = "pearson")
+plot(1:4, rp[,1], 
+     pch = 20, 
+     ylim = c(-3,3),
+     xlim = c(1,12),
+     xlab = "índice",ylab="Resíduos de Pearson")
+points(5:8, rp[,2], pch=20)
+points(9:12, rp[,3], pch=20)
+abline(h=0,lty=3)
+
+coef(m8.4, matrix = TRUE)
+```
+
+Para esse modelo tem-se a partir do logito 3, por exemplo, que a chance 
+de estado de saúde moderado (em relação ao estado de saúde ruim) dentre 
+os indivíduos idosos sem problema cardíaco foi 1/exp(-0.3516252) = 
+1.421376 vezes a daqueles com problema cardíaco. Por outro lado, a 
+chance de estado de saúde moderado (em relação ao estado de saúde ruim)
+dentre os indivíduos idosos que não utilizavam tabaco foi 
+1/exp(-0.4264225) = 1.5317681 vezes a daqueles que utilizavam.
+
+
+```{r}
+# modelo logitos razão contínua
+# sem chances proporcionais
+m8.5 <- vglm(cbind(exc, bom, mod, ruim) ~ tabaco + pcard,
+             data = da8, family = cratio(parallel = FALSE, 
+                                         reverse = FALSE))
+
+# com chances proporcionais
+m8.6 <- vglm(cbind(exc, bom, mod, ruim) ~ tabaco + pcard,
+             data = da8, family = cratio(parallel = TRUE, 
+                                         reverse = FALSE))
+coef(m8.6, matrix = TRUE)
+
+TRV <- 2*(logLik(m8.5)-logLik(m8.6))
+gl <- length(coef(m8.5))-length(coef(m8.6))
+p <- 1-pchisq(TRV,gl)
+cbind(TRV, gl, p) # há necessidade de chances proporcionais
+
+
+# tabaco
+# SEM chances proporcionais
+m8.5 <- vglm(cbind(exc, bom, mod, ruim) ~ tabaco,
+             data = da8, family = cratio(parallel = FALSE, 
+                                         reverse = FALSE))
+
+# chances proporcionais
+m8.6 <- vglm(cbind(exc, bom, mod, ruim) ~ tabaco,
+             data = da8, family = cratio(parallel = TRUE, 
+                                         reverse = FALSE))
+
+TRV <- 2*(logLik(m8.5)-logLik(m8.6))
+gl <- length(coef(m8.5))-length(coef(m8.6))
+p <- 1-pchisq(TRV,gl)
+cbind(TRV, gl, p) # não há necessidade de chances proporcionais
+
+# pcard
+# SEM chances proporcionais
+m8.5 <- vglm(cbind(exc, bom, mod, ruim) ~ pcard,
+             data = da8, family = cratio(parallel = FALSE, 
+                                         reverse = FALSE))
+
+# chances proporcionais
+m8.6 <- vglm(cbind(exc, bom, mod, ruim) ~ pcard,
+             data = da8, family = cratio(parallel = TRUE, 
+                                         reverse = FALSE))
+
+TRV <- 2*(logLik(m8.5)-logLik(m8.6))
+gl <- length(coef(m8.5))-length(coef(m8.6))
+p <- 1-pchisq(TRV,gl)
+cbind(TRV, gl, p) # não há necessidade de chances proporcionais
+
+# modelo final
+m8.5 <- vglm(cbind(exc, bom, mod, ruim) ~ tabaco + pcard,
+             data = da8, family = cratio(parallel = FALSE, 
+                                         reverse = FALSE))
+
+coef(m8.5, matrix = TRUE)
+
+QL <- deviance(m8.5)
+cbind(QL, 1-pchisq(QL, 3))
+
+par(mfrow=c(1,2))
+rb <- m8.5@y - fitted(m8.5)
+plot(1:4,rb[,1], pch=20,
+     ylim = c(-0.5,0.5),
+     xlim = c(1,16),
+     xlab = "índice",
+     ylab = "Probabilidade observada - predita")
+points(5:8, rb[,2], pch=20)
+points(9:12, rb[,3], pch=20)
+points(13:16, rb[,4], pch=20)
+abline(h=0,lty=3)
+ 
+rp <-resid(m8.5, type = "pearson")
+plot(1:4, rp[,1], pch=20, 
+     ylim=c(-3,3),
+     xlim=c(1,12),
+     xlab="índice",
+     ylab="Resíduos de Pearson")
+points(5:8, rp[,2],pch=20)
+points(9:12, rp[,3],pch=20)
+abline(h=0,lty=3)
+
+str(da8)
+```
+
+A partir do logito 1 tem-se, por exemplo, que a cQhance de estado de 
+saúde excelente (em relação aos demais estados) dentre os indivíduos 
+idosos sem problema cardíaco foi exp(1.045950) ??? 2.846101 vezes a 
+daqueles com problema cardíaco. Por outro lado, a chance de estado de 
+saúde excelente (em relação aos demais estados) dentre os indivíduos 
+idosos que não utilizavam tabaco foi exp(0.124586) = 1.132679 vezes a 
+daqueles que utilizavam.
+
+4. (...)
+
+*________________________________________________________________________*
+
+# Lista VII
+1. Um estudo caso-controle com pareamento 1:1 envolveu um total de 78 
+pessoas a fim de pesquisar se fumo (SMK) estaria associado ao infarto 
+do miocárdio (MI) (Kleinbaum, 1994). As vari´aveis consideradas no 
+pareamento foram: idade, raçaa e sexo. Duas outras variáveis não 
+consideradas no pareamento foram: pressão arterial sistólica (SBP) e 
+status do eletrocardiograma (ECG). 
+
+  Estudo caso–controle com pareamento 1:1 
+  (pares informativos: aqueles em que $x_{i1} \neq x_{i2}$)
+
+(a) Ajuste um modelo de regressão logística condicional aos dados.
+(b) Apresente conclusões com base no modelo ajustado.
+
+```{r}
+library(survival)
+
+dados <-read.table("infart.txt",
+                   header = TRUE)
+
+model <- clogit (MI ~ (SMK + SBP + ECG)^2 + strata(par),
+                 data = dados)
+model
+
+model <- clogit (MI ~ SMK + SBP + ECG + strata(par),
+                 data = dados)
+model 
+
+model <- clogit (MI ~  SBP + strata(par),
+                 data = dados)
+summary(model)
+
+plot(model$residuals, pch = 16, ylim = c(-2.5,2.5))
+```
+
+Para os dados analisados foram encontradas evidências de que SBP está 
+associada com infarto do miocárdio (MI), uma vez que a chance de se 
+observar pacientes com SBP elevado foi maior entre os casos (com MI)
+do que entre os controles (sem MI).
+
+2. Para investigar se a infertilidade secundária feminina estaria 
+associada com abortos prévios (induzidos ou espontâneos), 83 mulheres
+com a infertilidade mencionada e 83 sem a infertilidade participaram de 
+um estudo caso-controle em que foram pareadas por: idade, número de
+gravidez (incluindo abortos) e anos de escolaridade (Trichopoulos et 
+al., 1976). 
+
+```{r}
+dados2 <-read.table("infertilidade.txt", 
+                    header = TRUE)
+i <-order(dados2[,7])
+dados2 <- dados2[i,]
+
+model2 <-clogit(caso ~ ab_induzido + ab_espontaneo + strata(par),
+                data=dados2)
+model2
+
+plot(model2$residuals)
+```
+
+A partir do modelo ajustado há evidências de que a infertilidade 
+secundária feminina está associada com abortos prévios, uma vez que a 
+chance de se observar abortos induzidos, bem como abortos espontâneos, 
+foi maior entre os casos do que entre os controles. Por exemplo:
+ 
+(a)  a chance de se observar mulheres com 1 aborto induzido entre os 
+casos foi de ??? 3 vezes a de se observar mulheres com 1 aborto induzido 
+entre os controles;
+
+(b)  a chance de se observar mulheres com 1 aborto espontâneo entre os 
+casos foi de ??? 6,5 vezes a de se observar mulheres com 1 aborto 
+espontâneo entre os controles.

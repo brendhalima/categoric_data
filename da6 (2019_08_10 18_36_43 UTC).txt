@@ -1,0 +1,10 @@
+"Dieta" "Medicamente" "Sim" "Não" "Total"
+"1" "Usual" "Placebo" 23 67 90
+"2" "-Gordura" "Placebo" 40 50 90
+"3" "-Sal" "Placebo" 33 45 79
+"4" "Usual" " Chlortalidone" 47 40 87
+"5" "-Gordura" " Chlortalidone" 65 22 87
+"6" "-Sal" " Chlortalidone" 57 32 89
+"7" "Usual" "Atenolol" 61 26 87
+"8" "-Gordura" "Atenolol" 64 24 88
+"9" "-Sal" "Atenolol" 61 29 90
